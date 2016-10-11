@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+declare source="$1"
+if [ -z "$source" ]; then
+  echo >&2 "Missing source"
+  exit 1
+elif ! [ -f "$source" ]; then
+  echo >&2 "Source file not found"
+  exit 1
+fi
+
+cat $source | \
+  grep 'libLittlstarSDK' | \
+  sed 's/.*libLittlstarSDK*.a//g' | \
+  tr -d '(|)' | sort | uniq

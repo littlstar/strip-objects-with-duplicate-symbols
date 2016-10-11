@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+declare -a archs=(armv7 i386 x86_64 arm64)
+declare libdir=$1
+if [ -z "$libdir" ]; then
+  echo >&2 "Missing lib directory"
+  exit 1
+elif ! [ -d "$libdir" ]; then
+  echo >&2 "Invalid lib directory"
+  exit 1
+fi
+
+for lib in $libdir/*.a; do
+  for a in ${archs[@]}; do
+    out="$a/$(basename $lib)"
+    cmd="rm -rf $a/*"
+    if [[ "dry" =~ "$2" ]]; then
+      echo $cmd
+      echo
+    else
+      eval $cmd
+    fi
+  done
+done

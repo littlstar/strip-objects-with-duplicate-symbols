@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-declare -a archs=(armv7 i386 x86_64 arm64)
 declare libdir=$1
+CWD="$(pwd)"
+
 if [ -z "$libdir" ]; then
   echo >&2 "Missing lib directory"
   exit 1
@@ -9,20 +10,73 @@ elif ! [ -d "$libdir" ]; then
   exit 1
 fi
 
-for lib in $libdir/*.a; do
-  for a in ${archs[@]}; do
-    out="$a/$(basename $lib)"
+archs() {
+  lipo -info $1 | sed 's/.*are://g'
+}
 
-    cmd1="lipo -thin $a $lib -output $out"
-    cmd2="test -f '$out' && ar -x '$out'"
+for lib in $libdir/*.a; do
+  archs=$(archs $lib)
+
+  for a in ${archs[@]}; do
+    cd $CWD
+    let export count=0
+    dir="$a/$(basename $lib)"
+    dir="${dir%%.a}"
+
+    if ! lipo -info $lib | grep $a > /dev/null 2>&1; then
+      continue
+    fi
+
+    ## Create sandbox
+    mkdir -p "$dir"
+
+    ## intermediate output library
+    out="$dir/$(basename $lib)"
+
+    ## generate thin fat archive
+    cmd1="echo \* Working directory $dir && lipo -thin $a $lib -output $out"
+
+    ## extract archive for architecture
+    cmd2="cd $dir && ar -x '$(basename $out)'"
+
+    ## Purge offending sources
+    cmd3="export TOTAL=\"\`./scripts/symbols ./symbols_exception | wc -l | tr -d '[[:space:]]'\`\"; \
+      cd $dir && for obj in \`../../scripts/symbols ../../symbols_exception\`; do \
+        printf '\e[%s' '1K'; \
+        echo -n \"* Removing (\$count/\$TOTAL) \$obj\"; rm -f \$obj && ! [ -f \$obj ] && ((++count)) || { \
+          Failed to remove \$obj && exit 1; \
+        }; \
+      done"
+
+    ## Reconstruct archive
+    cmd4="cd $dir && rm -f \`libtool -static *.o -o $(basename $lib)\`"
+
+    ## Remove remaining objects
+    cmd5="cd $dir && rm -f *.o && rm -f __.SYMDEF"
 
     if [[ "dry" =~ "$2" ]]; then
-      echo $cmd1
-      echo $cmd2
-      echo
+      echo "* $cmd1"
+      echo "* $cmd2"
+      echo "* $cmd3"
+      echo "* $cmd4"
+      echo "* $cmd5"
     else
-      $cmd1
-      $cmd2
+      cd $CWD && eval $cmd1 &&
+      cd $CWD && eval $cmd2 &&
+      cd $CWD && eval $cmd3 &&
+      cd $CWD && eval $cmd4 &&
+      cd $CWD && eval $cmd5 || exit 1
+      echo "* $count removed for architecture $a ($(basename $lib))"
+      echo
     fi
   done
+
+  if ! [[ "dry" =~ "$2" ]]; then
+    cd $CWD
+    lipo -create $(eval "ls {$(echo ${archs[@]} | tr ' ' ',')}/$(basename ${lib%%.a})/$(basename $lib)") -output $(basename $lib)
+    for a in ${archs[@]}; do
+      :
+      #rm -rf $a
+    done
+  fi
 done
