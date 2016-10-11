@@ -4,13 +4,7 @@ arm64/*.a
 armv7/*.a
 i386/*.a
 x86_64/*.a
-<<<<<<< 3cf5704ede7cf22a21de4fe4070f80950bad6555
 lib/
 *.a
 *.zip
-<<<<<<< 378444a42f97cec4af90f147d70645733e410a06
-=======
->>>>>>> foo
-=======
 symbols_exception
->>>>>>> beep
